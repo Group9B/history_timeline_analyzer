@@ -59,9 +59,9 @@ def analyze_event_description(text: str) -> dict:
 if __name__ == "__main__":
     # Load the dataset from the CSV file
     try:
-        df = pd.read_csv("history_data.csv")
+        df = pd.read_csv("final-dataset-mannmakhecha07.csv")
     except FileNotFoundError:
-        print("Error: 'history_data.csv' not found. Make sure the file is in the same directory.")
+        print("Error: 'final-dataset-mannmakhecha07.csv' not found. Make sure the file is in the same directory.")
         exit()
 
     # Create new columns to store the extracted entities
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     # --- 4. Process Each Event in the Dataset ---
     # We loop through each row of our data
     for index, row in df.iterrows():
-        event_description = row["Description"]
+        event_description = row["description"]
         
         # Analyze the description using our function
         extracted_info = analyze_event_description(event_description)
@@ -93,45 +93,58 @@ if __name__ == "__main__":
     print(df)
 
 
-# ... (all the previous code) ...
 # --- 6. (Optional) Create a Visual Timeline ---
 # This block should be added at the end of the `if __name__ == "__main__":` block
 # in your analyzer.py script.
 
 print("\nGenerating visual timeline...")
 
-# Convert date column to datetime objects for proper plotting
-df['Date'] = pd.to_datetime(df['Date'])
-df = df.sort_values(by='Date') # Sort events chronologically
+# Convert date strings to datetime objects with a custom function
+def safe_date_conversion(date_str):
+    try:
+        # First try pandas datetime conversion
+        return pd.to_datetime(date_str)
+    except:
+        # For very old dates, use just the year
+        year = int(date_str.split('-')[0])
+        # Use a reference date for plotting
+        return pd.Timestamp(f'{1677 if year < 1677 else year}-01-01')
+
+# Convert and sort dates
+df['plot_date'] = df['date'].apply(safe_date_conversion)
+df = df.sort_values(by='plot_date')
 
 # Create the plot
-fig, ax = plt.subplots(figsize=(12, 8))
+fig, ax = plt.subplots(figsize=(15, 10))
 
-# We'll plot events on a line, alternating their vertical position for clarity
-# CORRECTED LINE: Ensure the levels list is the same size as the dataframe
+# Calculate levels for event spacing
 base_levels = [-5, 5, -3, 3, -1, 1]
 levels = (base_levels * (len(df) // len(base_levels) + 1))[:len(df)]
 
+# Create timeline spine
+ax.vlines(df['plot_date'], 0, levels, color="tab:red")
 
-# Create a vertical line for the timeline's spine
-ax.vlines(df['Date'], 0, levels, color="tab:red")
-
-# Plot each event as a dot on the timeline
-ax.plot(df['Date'], [0]*len(df), "-o",
+# Plot events
+ax.plot(df['plot_date'], [0]*len(df), "-o",
         color="k", markerfacecolor="w")
 
-# Add labels for each event
-for i, (date, event_text) in enumerate(zip(df['Date'], df['Event'])):
-    ax.text(date, levels[i], event_text,
-            horizontalalignment='center',
+# Add event labels
+for i, (date, event_text) in enumerate(zip(df['plot_date'], df['event'])):
+    # Create a more compact label if text is too long
+    label = event_text if len(event_text) < 30 else event_text[:27] + "..."
+    ax.text(date, levels[i], label,
+            horizontalalignment='right' if i % 2 == 0 else 'left',
             verticalalignment='bottom' if levels[i] > 0 else 'top',
-            fontweight='bold',
+            rotation=0,
+            fontsize=8,
             bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.2'))
 
-# Formatting the plot for better readability
-plt.setp(ax.get_xticklabels(), rotation=30, ha="right")
-ax.yaxis.set_visible(False) # Hide the y-axis
-ax.spines[['left', 'top', 'right']].set_visible(False) # Hide plot borders
+# Format the plot
+plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+ax.yaxis.set_visible(False)
+ax.spines[['left', 'top', 'right']].set_visible(False)
 ax.set_title('Historical Events Timeline', fontweight='bold', fontsize=16)
+
+# Adjust layout and display
 plt.tight_layout()
-plt.show() # Display the plot
+plt.show()
